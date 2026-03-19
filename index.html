@@ -79,6 +79,46 @@
         }
         textarea:focus { border-color: #f0d060; }
 
+        .hp-input-container {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .hp-input-container label { font-size: 0.9em; color: #aaa; }
+        
+        .help-icon {
+            font-size: 0.85em;
+            color: #f0d060;
+            cursor: help;
+            text-decoration: underline;
+            margin-left: 5px;
+        }
+        .help-icon:hover { color: #fff; }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            background: #000;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 120px;
+            text-align: right;
+            font-family: 'Consolas', monospace;
+            outline: none;
+        }
+        input[type="number"]:focus { border-color: #f0d060; }
+
         .calc-btn {
             width: 100%;
             padding: 15px;
@@ -97,10 +137,8 @@
         .analysis-card { background: #111; padding: 20px; border-radius: 6px; margin-top: 20px; border: 1px solid #333; }
         .damage-bar-container { height: 32px; width: 100%; background: #222; display: flex; margin: 15px 0; border-radius: 4px; overflow: hidden; border: 1px solid #444; }
         
-        /* グラフ色定義 */
         .bar-mitigated { background: #28a745; } 
         .bar-special   { background: #82ccdd; }
-        /* バリアカラーを黄色に変更 */
         .bar-absorbed  { background: #ffd700; }
         .bar-taken     { background: #dc3545; }
         .bar-overkill  { background: #ff00ff; }
@@ -132,14 +170,23 @@
             <div class="guide-item"><b>U:</b> 軽減計算前ダメージ</div>
             <div class="guide-item"><b>M:</b> 軽減された量</div>
             <div class="guide-item"><b>A:</b> バリア相殺量</div>
-            <div class="guide-item"><b>O:</b> HP超過分(オーバーキル)</div>
-            <div class="guide-item"><b>B/P:</b> ブロック/受け流し</div>
+            <div class="guide-item"><b>O:</b> HP超過分</div>
+            <div class="guide-item"><b>B/P:</b> ブロック(20%)/受け流し(15%)</div>
             <div class="guide-item"><b>%:</b> 軽減率</div>
         </div>
-        <div class="warning-text">⚠️ <b>ご注意:</b> "prepares" を含む行はダメージ確定ログです。詳細な数値が含まれないため、ダメージ確定後の <b>"prepares記載のない行"</b> を貼り付けてください。</div>
+        <div class="warning-text">⚠️ <b>ご注意:</b> "prepares" を含む行はダメージ確定ログです。prepares記載のない行を貼り付けてください。</div>
     </div>
 
     <textarea id="logInput"></textarea>
+    
+    <div class="hp-input-container">
+        <label for="maxHpInput">
+            ♥️任意：最大HP入力で解析内容拡充
+            <span class="help-icon" title="FFLogsの『リソース』タブ ＞ 『ヒットポイント』を選択し、対象プレイヤーを絞り込んでグラフにマウスを合わせると、正確な最大HPを確認できます。">（❓調べ方）</span>
+        </label>
+        <input type="number" id="maxHpInput" placeholder="例: 32831" onkeydown="if(event.key==='ArrowUp'||event.key==='ArrowDown')event.preventDefault()" onwheel="event.preventDefault()">
+    </div>
+
     <button onclick="analyzeLog()" class="calc-btn">ログを解析する</button>
 
     <div id="errorArea" class="hidden"></div>
@@ -149,7 +196,7 @@
             <span id="skillName" style="color:#f0d060; font-weight:bold; font-size:1.1em;">解析結果</span>
             <div class="damage-bar-container" id="bar"></div>
             <div class="legend">
-                <div class="legend-item"><span class="bar-mitigated"></span>軽減 (M)</div>
+                <div class="legend-item"><span class="bar-mitigated"></span>軽減 (M-B/P)</div>
                 <div class="legend-item"><span class="bar-special"></span>特殊 (B/P)</div>
                 <div class="legend-item"><span class="bar-absorbed"></span>バリア (A)</div>
                 <div class="legend-item"><span class="bar-taken"></span>実ダメ</div>
@@ -159,7 +206,7 @@
             <table class="stats-table">
                 <tr><td>未軽減ダメージ (U)</td><td class="val" id="val-u">-</td></tr>
                 <tr><td>合計軽減量 (M)</td><td class="val" id="val-m" style="color:#45cc66;">-</td></tr>
-                <tr id="row-special" class="hidden"><td>└ 内訳 (ブロック/パリィ)</td><td class="val" id="val-special" style="color:#82ccdd;">-</td></tr>
+                <tr id="row-special" class="hidden"><td>└ 内訳 (ブロック/受け流し)</td><td class="val" id="val-special" style="color:#82ccdd;">-</td></tr>
                 <tr><td>バリア相殺量 (A)</td><td class="val" id="val-a" style="color:#ffd700;">-</td></tr>
                 <tr><td><strong>最終実ダメージ</strong></td><td class="val final-dmg" id="val-d">-</td></tr>
             </table>
@@ -177,6 +224,7 @@ window.onload = function() {
 
 function analyzeLog() {
     const input = document.getElementById('logInput').value.trim();
+    const maxHp = parseInt(document.getElementById('maxHpInput').value) || 0;
     const resultArea = document.getElementById('resultArea');
     const errorArea = document.getElementById('errorArea');
     
@@ -190,7 +238,6 @@ function analyzeLog() {
         return;
     }
 
-    // 数値の抽出
     const uMatch = input.match(/U:\s*(\d+)/);
     const mMatch = input.match(/M:\s*(\d+)/);
     const aMatch = input.match(/A:\s*(\d+)/);
@@ -205,15 +252,19 @@ function analyzeLog() {
     const b = bMatch ? parseInt(bMatch[1]) : 0;
     const p = pMatch ? parseInt(pMatch[1]) : 0;
     const specialMit = b + p;
+    const pureMit = m - specialMit;
 
-    // --- 特殊処理：バリア完封ログ（U/Mがない場合） ---
     if (!uMatch && a > 0) {
         resultArea.classList.remove('hidden');
-        document.getElementById('skillName').innerText = "バリア完封ログ";
+        const parts = input.split(/\s+/);
+        let detectedSkill = "解析結果";
+        if (parts.length > 2) {
+            detectedSkill = isNaN(parts[2]) ? parts[2] : (parts[3] || "解析結果");
+        }
+        document.getElementById('skillName').innerText = detectedSkill;
         document.getElementById('bar').innerHTML = `<div class="bar-absorbed" style="width:100%"></div>`;
         document.getElementById('val-u').innerText = "計測不能";
         document.getElementById('val-m').innerText = "-";
-        // ここも黄色に
         document.getElementById('val-a').innerText = `-${a.toLocaleString()}`;
         document.getElementById('val-d').innerText = "0";
         document.getElementById('reportArea').className = "report-box survival-report";
@@ -221,38 +272,40 @@ function analyzeLog() {
         return;
     }
 
-    // U（未軽減ダメージ）さえない場合は解析不能
     if (!uMatch) {
         errorArea.innerHTML = `<div class="error-msg"><strong>⚠️ 形式エラー:</strong> 未軽減ダメージ(U:)が見つかりません。</div>`;
         errorArea.classList.remove('hidden');
         return;
     }
 
-    // 実ダメージの抽出
-    const dmgMatch = input.match(/\s(\d+)\s+\(A:/) || input.match(/\s(\d+)\s+\(B:/) || input.match(/Player\s+\(\d+\)\s+(\d+)/) || input.match(/(\d+)\s+\(O:/);
+    const dmgMatch = input.match(/\s(\d+)\s+\(A:/) || input.match(/\s(\d+)\s+\(B:/) || input.match(/Player\s+\(\d+\)\s+(\d+)/) || input.match(/(\d+)\s+\(O:/) || input.match(/(\d+)\s+\(U:/);
     const d = dmgMatch ? parseInt(dmgMatch[1]) : 0;
 
     resultArea.classList.remove('hidden');
-
-    // スキル名抽出：IDID対応
     const parts = input.split(/\s+/);
     let detectedSkill = "解析結果";
     if (parts.length > 2) {
-        if (!isNaN(parts[2])) {
-            detectedSkill = parts[3] || "解析結果";
-        } else {
-            detectedSkill = parts[2];
-        }
+        detectedSkill = isNaN(parts[2]) ? parts[2] : (parts[3] || "解析結果");
     }
     document.getElementById('skillName').innerText = detectedSkill;
 
-    const totalForBar = Math.max(u, u + o);
+    const mPct = (m / u) * 100;
+    const aPct = (a / u) * 100;
+    const oPct = (o / u) * 100;
+    const specialPct = (specialMit / u) * 100;
+    const pureMitPct = mPct - specialPct;
+
+    // 2. 基本となる実ダメの割合
+    const takenBasePct = 100 - mPct - aPct - oPct;
+
+    // 3. バーの描画
+    // 最後の要素に flex-grow: 1 を付与することで、0.00001% の隙間も埋め尽くします
     document.getElementById('bar').innerHTML = `
-        <div class="bar-mitigated" style="width:${((m - specialMit) / totalForBar) * 100}%"></div>
-        <div class="bar-special" style="width:${(specialMit / totalForBar) * 100}%"></div>
-        <div class="bar-absorbed" style="width:${(a / totalForBar) * 100}%"></div>
-        <div class="bar-taken" style="width:${((u - m) / totalForBar) * 100 - (o / totalForBar) * 100}%"></div>
-        ${o > 0 ? `<div class="bar-overkill" style="width:${(o / totalForBar) * 100}%"></div>` : ''}
+        <div class="bar-mitigated" style="width:${pureMitPct}%"></div>
+        <div class="bar-special" style="width:${specialPct}%"></div>
+        <div class="bar-absorbed" style="width:${aPct}%"></div>
+        <div class="bar-taken" style="width:${takenBasePct}%; ${o <= 0 ? 'flex-grow:1;' : ''}"></div>
+        ${o > 0 ? `<div class="bar-overkill" style="width:${oPct}%; flex-grow:1;"></div>` : ''}
     `;
 
     document.getElementById('val-u').innerText = u.toLocaleString();
@@ -260,12 +313,11 @@ function analyzeLog() {
     document.getElementById('val-a').innerText = `-${a.toLocaleString()}`;
     document.getElementById('val-d').innerText = d.toLocaleString();
 
-    const rowSpecial = document.getElementById('row-special');
     if (specialMit > 0) {
-        rowSpecial.classList.remove('hidden');
+        document.getElementById('row-special').classList.remove('hidden');
         document.getElementById('val-special').innerText = `-${specialMit.toLocaleString()}`;
     } else {
-        rowSpecial.classList.add('hidden');
+        document.getElementById('row-special').classList.add('hidden');
     }
 
     const reportArea = document.getElementById('reportArea');
@@ -273,7 +325,37 @@ function analyzeLog() {
         reportArea.className = "report-box death-report";
         const currentTaken = u - m;
         const requiredRatio = (o / currentTaken) * 100;
+        let hpAdvice = "";
         
+        if (maxHp > 0) {
+            const displayHpPct = Math.floor((d / maxHp) * 1000) / 10;
+            hpAdvice = `<br><br><strong>💔 最大HP判定:</strong><br>`;
+            advicePctStr = (d >= maxHp) ? "100.0" : displayHpPct.toFixed(1);
+            hpAdvice += `被弾時のHP割合: <span class="advice-tag">${advicePctStr}%</span><br>`;
+            
+            if (currentTaken > maxHp) {
+                if (d >= maxHp) {
+                    hpAdvice += `👉 <span style="color:#00ff66;">HPは100%万全でした。戻しは完璧でしたが軽減量が不足しており、全快でも耐えられないダメージでした。軽減プランを再構築するか、装備・飯による最大HPの底上げを検討しましょう。</span>`;
+                } else if (displayHpPct >= 91) {
+                    hpAdvice += `👉 <span style="color:#f0d060;">HPはほぼ戻っていましたが、この威力だと全快でも耐えられない軽減不足の状態です。軽減を増やすことを最優先しつつ、戻しも100%を目指しましょう。</span>`;
+                } else if (displayHpPct >= 71) {
+                    hpAdvice += `👉 <span style="color:#f0d060;">全快でも耐えられないほど軽減が足りておらず、HPも少し凹んでいました。軽減の相談と、ヒール漏れがないかの再確認をセットで行いましょう。</span>`;
+                } else {
+                    hpAdvice += `👉 <span style="color:#ff6666;">軽減が大幅に不足しており、全快でも耐えられない非常に危険な状態です。まずは軽減を厚く積み増し、着弾前のHPも全快まで戻すよう意識してみましょう。</span>`;
+                }
+            } else {
+                if (d >= maxHp) {
+                    hpAdvice += `👉 <span style="color:#00ff66;">HPは100%フルでした。戻しは完璧です！乱数対策にバリアを厚くするか、保険の軽減をあと1枚足すとより安全になります。</span>`;
+                } else if (displayHpPct >= 91) {
+                    hpAdvice += `👉 <span style="color:#f0d060;">HPはほぼ戻っていましたが、わずかに足りなかったようです。軽減・バリアがあと1枚あるか、HPが100%なら生存できていた可能性があります。</span>`;
+                } else if (displayHpPct >= 71) {
+                    hpAdvice += `👉 <span style="color:#f0d060;">惜しいです！本来は耐えられる威力ですが、HPが少し凹んでいました。立ち位置によるヒール漏れや、自衛スキルの活用を再確認してみましょう。</span>`;
+                } else {
+                    hpAdvice += `👉 <span style="color:#ff6666;">軽減は十分効いています。着弾前にHPを戻しきる（またはヒール漏れをなくす）ことで、余裕を持って生存できる可能性が高いです。</span>`;
+                }
+            }
+        }
+
         const getStacks = (pct) => {
             let s = 0, mul = 1.0;
             while ((1 - mul) * 100 < requiredRatio && s < 10) { s++; mul *= (1 - pct/100); }
@@ -283,7 +365,7 @@ function analyzeLog() {
         reportArea.innerHTML = `
             <strong>🚨 死亡リポート</strong><br>
             HPを <span class="advice-tag">${o.toLocaleString()}</span> 超過しました。${m === 0 ? '<br><span style="color:#ffcc00;">※軽減が1枚も入っていません！</span>' : ''}<br>
-            あと <span class="advice-tag">${requiredRatio.toFixed(1)}%</span> のカットが必要です。<br><br>
+            あと <span class="advice-tag">${requiredRatio.toFixed(1)}%</span> のカットが必要です。${hpAdvice}<br><br>
             <strong>🛡️ 軽減追加の目安 (乗算計算済み):</strong><br>
             ・<span class="advice-tag">10%軽減</span> なら あと <b style="font-size:1.2em;">${getStacks(10)}枚</b><br>
             ・<span class="advice-tag">20%軽減</span> なら あと <b style="font-size:1.2em;">${getStacks(20)}枚</b><br>
@@ -295,7 +377,7 @@ function analyzeLog() {
         let msg = `<strong>✅ 生存成功</strong><br>`;
         if (m === 0 && a === 0) msg += `軽減・バリアなしの「素受け」で耐えきりました！`;
         else if (a >= (u - m)) msg += `バリアがダメージを完全に上回る状態でした。`;
-        else msg += `無事に生き残りました！`;
+        else msg += `無事に受けきりました！`;
         reportArea.innerHTML = msg;
     }
 }
